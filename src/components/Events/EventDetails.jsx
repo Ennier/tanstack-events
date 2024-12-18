@@ -1,58 +1,99 @@
 import { Link, Outlet, useNavigate, useParams } from 'react-router-dom';
 
 import Header from '../Header.jsx';
+import LoadingIndicator from '../UI/LoadingIndicator.jsx';
+import ErrorBlock from '../UI/ErrorBlock.jsx';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { fetchEvent, deleteEvent, queryClient } from '../../util/http.js';
+import { useState } from 'react';
+import Modal from '../UI/Modal.jsx';
 
 export default function EventDetails() {
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const eventId = useParams().id;
   const navigate = useNavigate();
 
-  const { mutate: deleteEventMutation, isLoading: isDeleting } = useMutation({
+  const { isPending, isError, error, data } = useQuery({
+    queryKey: ['events', eventId],
+    queryFn: ({ signal }) => fetchEvent({ signal, id: eventId }),
+  });
+
+  const { mutate, isPending: isPendingDeletition } = useMutation({
     mutationFn: deleteEvent,
     onSuccess: () => {
-      console.log('event deleted');
-      queryClient.removeQueries(['event', eventId]);
-      console.log('query removed');
+      queryClient.invalidateQueries({
+        queryKey: ['events'],
+        refetchType: 'none'
+      });
       navigate('/events');
-      console.log('navigate to events');
-    },
-    onError: (error) => {
-      console.log(error);
-    },
+    }
   });
-  
-  const { isLoading, isError, error, data } = useQuery({
-    queryKey: ['event', eventId],
-    queryFn: ({ signal }) => fetchEvent({ id: eventId, signal }),
-  });
-
 
   function handleDelete() {
-    deleteEventMutation({ id: eventId });
-    console.log('Delete mutation triggered');
+    mutate({ id: eventId });
+  }
+
+  function handleStartDeleting() {
+    setIsDeleting(true);
+  }
+
+  function handleStopDeleting() {
+    setIsDeleting(false);
+  }
+
+
+  if (isPending) {
+    return (
+      <div id='event-details-content' className='center'>
+        <LoadingIndicator />
+      </div>
+    )
+  }
+
+  if (isError) {
+    return (
+      <div id="event-details-content" className="center">
+        <ErrorBlock
+          title="An error occurred"
+          message={error.info?.message || 'Failed to fetch event'}
+        />
+      </div>
+    );
   }
 
   return (
     <>
+      {isDeleting && (
+        <Modal onClose={handleStopDeleting} isPending={isDeleting}>
+          <p>Are you sure you want to delete this event?</p>
+          <div className="form-actions">
+            <button className='button' onClick={handleStopDeleting}> Cancel </button>
+            <button className='button' onClick={handleDelete} disabled={isPendingDeletition}>
+              {isPendingDeletition ? 'Deleting...' : 'Delete'}
+            </button>
+          </div>
+        </Modal>
+      )}
+
       <Outlet />
+
       <Header>
         <Link to="/events" className="nav-item">
           View all Events
         </Link>
       </Header>
-      {isError && <p>{error.info?.message}</p>}
-      {isLoading && <p>Loading...</p>}
-      {isDeleting && <p>Deleting...</p>}
+
       {data && <article id="event-details">
         <header>
           <h1>{data.title}</h1>
           <nav>
             <button
-              onClick={handleDelete}
-              disabled={isDeleting}
+              className="button"
+              onClick={handleStartDeleting}
+              disabled={isPendingDeletition}
             >
-              {isDeleting ? 'Deleting...' : 'Delete'}
+              {isPendingDeletition ? 'Deleting...' : 'Delete'}
             </button>
             <Link to="edit">Edit</Link>
           </nav>
