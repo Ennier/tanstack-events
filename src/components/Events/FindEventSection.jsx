@@ -10,8 +10,8 @@ export default function FindEventSection() {
   const [searchTerm, setSearchTerm] = useState();
 
   const { isLoading, isError, error, data } = useQuery({
-    queryKey: ['events', { search: searchTerm }],
-    queryFn: ({ signal }) => fetchEvents({signal, searchTerm}),
+    queryKey: ['events', { searchTerm: searchTerm }],
+    queryFn: ({ signal, queryKey }) => fetchEvents({signal, ...queryKey[1]}),
     enabled: searchTerm !== undefined,
   });
 
